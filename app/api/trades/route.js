@@ -72,6 +72,7 @@ export async function POST(request) {
     const notion = new Client({ auth: process.env.NOTION_TOKEN });
     const body = await request.json();
     const { date, pair, direction, lot, pnl, commission, outcome, setup, sl, tp } = body;
+    
 
     const properties = {
       "No trade": {
@@ -91,7 +92,7 @@ export async function POST(request) {
     if (date) properties["Trade Date"] = { date: { start: date } };
 
     const page = await notion.pages.create({
-      parent: { database_id: process.env.TRADES_DB_ID },
+      parent: { type: "database_id", database_id: process.env.TRADES_DB_ID },
       properties,
     });
 
