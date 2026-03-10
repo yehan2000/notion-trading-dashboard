@@ -105,3 +105,43 @@ export async function POST(request) {
     );
   }
 }
+
+export async function PATCH(request) {
+  try {
+    if (!process.env.NOTION_TOKEN) return NextResponse.json({ error: "Missing NOTION_TOKEN" }, { status: 500 });
+    if (!process.env.TRADES_DB_ID) return NextResponse.json({ error: "Missing TRADES_DB_ID" }, { status: 500 });
+
+    const notion = new Client({ auth: process.env.NOTION_TOKEN });
+    const body = await request.json();
+    const { id, date, pair, direction, lot, pnl, commission, outcome, setup, sl, tp } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing trade id" }, { status: 400 });
+    }
+
+    const properties = {};
+    if (pair !== undefined) properties["Pair"] = pair ? { select: { name: pair } } : { select: null };
+    if (direction !== undefined) properties["BUY/SELL"] = direction ? { select: { name: direction } } : { select: null };
+    if (outcome !== undefined) properties["Trade outcome"] = outcome ? { select: { name: outcome } } : { select: null };
+    if (setup !== undefined) properties["Setup"] = setup ? { select: { name: setup } } : { select: null };
+    if (lot !== undefined) properties["Lot"] = { number: lot == null ? null : parseFloat(lot) };
+    if (pnl !== undefined) properties["Profit/Loss"] = { number: pnl == null ? null : parseFloat(pnl) };
+    if (commission !== undefined) properties["Commission"] = { number: commission == null ? null : parseFloat(commission) };
+    if (sl !== undefined) properties["Stop Loss"] = { number: sl == null ? null : parseFloat(sl) };
+    if (tp !== undefined) properties["Take Profit"] = { number: tp == null ? null : parseFloat(tp) };
+    if (date !== undefined) properties["Trade Date"] = date ? { date: { start: date } } : { date: null };
+
+    await notion.pages.update({
+      page_id: id,
+      properties,
+    });
+
+    return NextResponse.json({ success: true, id });
+  } catch (e) {
+    console.error("PATCH /api/trades error:", e);
+    return NextResponse.json(
+      { error: "Failed to update trade", details: String(e?.message || e) },
+      { status: 500 }
+    );
+  }
+}

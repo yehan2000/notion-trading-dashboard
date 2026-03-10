@@ -190,7 +190,7 @@ const COLUMNS = [
   { key: "outcome",   label: "Outcome", sort: (a,b)=>(a.outcome||"").localeCompare(b.outcome||"") },
 ];
 
-function TradeTable({ trades, filter }) {
+function TradeTable({ trades, filter, onEditTrade }) {
   const now = new Date();
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState("date");
@@ -224,7 +224,12 @@ function TradeTable({ trades, filter }) {
                 <span style={{background:t.pair==="XAUUSD"?"#2a1f00":"#1a1a2e",color:t.pair==="XAUUSD"?"#f59e0b":"#818cf8",padding:"2px 7px",borderRadius:4,fontSize:9,fontWeight:600}}>{t.pair||"—"}</span>
                 <span style={{color:t.direction==="BUY"?"#4ade80":"#f87171",fontSize:10,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{t.direction||"—"}</span>
               </div>
-              {t.outcome && <span style={{background:t.outcome==="WIN"?"#0d2117":"#1a0d0d",color:t.outcome==="WIN"?"#4ade80":"#f87171",padding:"2px 8px",borderRadius:20,fontSize:9,fontWeight:700,border:`1px solid ${t.outcome==="WIN"?"#1a4a2a":"#3a1a1a"}`}}>{t.outcome}</span>}
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {t.outcome && <span style={{background:t.outcome==="WIN"?"#0d2117":"#1a0d0d",color:t.outcome==="WIN"?"#4ade80":"#f87171",padding:"2px 8px",borderRadius:20,fontSize:9,fontWeight:700,border:`1px solid ${t.outcome==="WIN"?"#1a4a2a":"#3a1a1a"}`}}>{t.outcome}</span>}
+                <button onClick={() => onEditTrade(t)} style={{background:"#0f1520",border:"1px solid #1e2433",color:"#60a5fa",borderRadius:6,padding:"3px 7px",fontSize:9,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+                  Edit
+                </button>
+              </div>
             </div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
@@ -258,11 +263,14 @@ function TradeTable({ trades, filter }) {
                 {c.label}{c.sort && <SortIcon k={c.key} />}
               </th>
             ))}
+            <th style={{padding:"8px 10px",textAlign:"left",color:"#3a4255",fontFamily:"'DM Mono',monospace",fontWeight:400,fontSize:9,letterSpacing:1,whiteSpace:"nowrap"}}>
+              Action
+            </th>
           </tr>
         </thead>
         <tbody>
           {sorted.length === 0 ? (
-            <tr><td colSpan={10} style={{padding:32,textAlign:"center",color:"#3a4255",fontFamily:"'DM Mono',monospace"}}>No trades in this period</td></tr>
+            <tr><td colSpan={11} style={{padding:32,textAlign:"center",color:"#3a4255",fontFamily:"'DM Mono',monospace"}}>No trades in this period</td></tr>
           ) : sorted.map((t,i) => (
             <tr key={t.id||i} style={{borderBottom:"1px solid #0f1520"}}
               onMouseEnter={e=>e.currentTarget.style.background="#0f1520"}
@@ -277,6 +285,11 @@ function TradeTable({ trades, filter }) {
               <td style={{padding:"8px 10px",fontWeight:700,color:netPnl(t)>=0?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace"}}>{fmt(netPnl(t))}</td>
               <td style={{padding:"8px 10px"}}>{t.setup&&<span style={{background:"#1a1f2e",color:"#8899aa",padding:"2px 7px",borderRadius:4,fontSize:9}}>{t.setup}</span>}</td>
               <td style={{padding:"8px 10px"}}>{t.outcome&&<span style={{background:t.outcome==="WIN"?"#0d2117":"#1a0d0d",color:t.outcome==="WIN"?"#4ade80":"#f87171",padding:"2px 9px",borderRadius:20,fontSize:9,fontWeight:700,border:`1px solid ${t.outcome==="WIN"?"#1a4a2a":"#3a1a1a"}`}}>{t.outcome}</span>}</td>
+              <td style={{padding:"8px 10px"}}>
+                <button onClick={() => onEditTrade(t)} style={{background:"#0f1520",border:"1px solid #1e2433",color:"#60a5fa",borderRadius:6,padding:"4px 8px",fontSize:9,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+                  Edit
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -286,8 +299,10 @@ function TradeTable({ trades, filter }) {
 }
 
 // ── ADD TRADE MODAL ───────────────────────────────────────────────────────────
-function AddTradeModal({ onClose, onSuccess }) {
-  const [date, setDate]             = useState(new Date().toISOString().slice(0,10));
+function AddTradeModal({ onClose, onSuccess, initialTrade = null }) {
+  const today = new Date().toISOString().slice(0,10);
+  const isEdit = Boolean(initialTrade?.id);
+  const [date, setDate]             = useState(today);
   const [pair, setPair]             = useState("XAUUSD");
   const [direction, setDirection]   = useState("BUY");
   const [lot, setLot]               = useState("");
@@ -299,6 +314,20 @@ function AddTradeModal({ onClose, onSuccess }) {
   const [tp, setTp]                 = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState(null);
+
+  useEffect(() => {
+    if (!initialTrade) return;
+    setDate((initialTrade.date || today).slice(0, 10));
+    setPair(initialTrade.pair || "XAUUSD");
+    setDirection(initialTrade.direction || "BUY");
+    setLot(initialTrade.lot == null ? "" : String(initialTrade.lot));
+    setPnl(initialTrade.pnl == null ? "" : String(initialTrade.pnl));
+    setCommission(initialTrade.commission == null ? "" : String(initialTrade.commission));
+    setOutcome(initialTrade.outcome || "WIN");
+    setSetup(initialTrade.setup || "");
+    setSl(initialTrade.sl == null ? "" : String(initialTrade.sl));
+    setTp(initialTrade.tp == null ? "" : String(initialTrade.tp));
+  }, [initialTrade, today]);
 
   useEffect(() => {
     if (pair !== "XAUUSD") return;
@@ -315,8 +344,9 @@ function AddTradeModal({ onClose, onSuccess }) {
     setSubmitting(true); setError(null);
     try {
       const res = await fetch("/api/trades", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: isEdit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: initialTrade?.id,
           date, pair, direction, outcome, setup,
           lot:        lot        !== "" ? parseFloat(lot)        : null,
           pnl:        pnl        !== "" ? parseFloat(pnl)        : null,
@@ -339,8 +369,10 @@ function AddTradeModal({ onClose, onSuccess }) {
         <div style={{width:36,height:4,background:"#1e2433",borderRadius:2,margin:"0 auto 20px"}} />
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <div>
-            <div style={{fontFamily:"'Syne', sans-serif",fontWeight:800,fontSize:18,color:"#e8eaf0"}}>+ New Trade</div>
-            <div style={{fontSize:10,color:"#5a6478",fontFamily:"'DM Mono', monospace",marginTop:2}}>Saved directly to Notion</div>
+            <div style={{fontFamily:"'Syne', sans-serif",fontWeight:800,fontSize:18,color:"#e8eaf0"}}>{isEdit ? "Edit Trade" : "+ New Trade"}</div>
+            <div style={{fontSize:10,color:"#5a6478",fontFamily:"'DM Mono', monospace",marginTop:2}}>
+              {isEdit ? "Update and save to Notion" : "Saved directly to Notion"}
+            </div>
           </div>
           <button onClick={onClose} style={{background:"#080b12",border:"1px solid #1e2433",color:"#5a6478",cursor:"pointer",fontSize:16,borderRadius:8,width:36,height:36}}>✕</button>
         </div>
@@ -423,7 +455,7 @@ function AddTradeModal({ onClose, onSuccess }) {
 
           <button onClick={handleSubmit} disabled={submitting}
             style={{background:submitting?"#1a2e1a":"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",borderRadius:12,color:"#080b12",padding:"16px",cursor:submitting?"not-allowed":"pointer",fontSize:14,fontWeight:800,fontFamily:"'Syne', sans-serif",letterSpacing:1}}>
-            {submitting ? "SAVING TO NOTION..." : "SAVE TRADE →"}
+            {submitting ? "SAVING TO NOTION..." : (isEdit ? "UPDATE TRADE →" : "SAVE TRADE →")}
           </button>
         </div>
       </div>
@@ -441,6 +473,7 @@ export default function TradingDashboard() {
   const [chartTab, setChartTab]   = useState("daily");
   const [tableFilter, setTableFilter] = useState("all");
   const [showAddTrade, setShowAddTrade] = useState(false);
+  const [editingTrade, setEditingTrade] = useState(null);
   const isMobile = useIsMobile();
 
   const loadData = useCallback(async () => {
@@ -529,7 +562,7 @@ export default function TradingDashboard() {
           ))}
         </div>
         <div style={{display:"flex",gap:6,flexShrink:0}}>
-          <button onClick={()=>setShowAddTrade(true)} style={{background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#080b12",padding:isMobile?"7px 12px":"7px 14px",borderRadius:8,cursor:"pointer",fontSize:isMobile?12:10,fontFamily:"'DM Mono',monospace",fontWeight:800,whiteSpace:"nowrap"}}>
+          <button onClick={()=>{ setEditingTrade(null); setShowAddTrade(true); }} style={{background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#080b12",padding:isMobile?"7px 12px":"7px 14px",borderRadius:8,cursor:"pointer",fontSize:isMobile?12:10,fontFamily:"'DM Mono',monospace",fontWeight:800,whiteSpace:"nowrap"}}>
             {isMobile?"+ Add":"+ ADD TRADE"}
           </button>
           <button onClick={loadData} style={{background:"#0f1520",border:"1px solid #1e2433",color:"#4ade80",padding:"7px 10px",borderRadius:8,cursor:"pointer",fontSize:14}}>↻</button>
@@ -672,7 +705,7 @@ export default function TradingDashboard() {
                   ))}
                 </div>
               </div>
-              <TradeTable trades={validTrades} filter={tableFilter} />
+              <TradeTable trades={validTrades} filter={tableFilter} onEditTrade={setEditingTrade} />
               <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #1e2433",display:"flex",gap:16,flexWrap:"wrap"}}>
                 {[["Trades",String(validTrades.length),"#e8eaf0"],["Net P&L",fmt(totalNetPnl),totalNetPnl>=0?"#4ade80":"#f87171"],["Win Rate",`${winRate}%`,"#4ade80"]].map(([l,v,c])=>(
                   <div key={l} style={{fontSize:10,color:"#5a6478"}}>{l}: <span style={{color:c,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{v}</span></div>
@@ -759,7 +792,19 @@ export default function TradingDashboard() {
         </>)}
       </div>
 
-      {showAddTrade && <AddTradeModal onClose={()=>setShowAddTrade(false)} onSuccess={loadData} />}
+      {showAddTrade && (
+        <AddTradeModal
+          onClose={()=>setShowAddTrade(false)}
+          onSuccess={loadData}
+        />
+      )}
+      {editingTrade && (
+        <AddTradeModal
+          initialTrade={editingTrade}
+          onClose={()=>setEditingTrade(null)}
+          onSuccess={loadData}
+        />
+      )}
     </div>
   );
 }
