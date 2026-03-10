@@ -18,7 +18,7 @@ async function fetchAccounts() {
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
-const netPnl = (t) => (t.pnl ?? 0) - Math.abs(t.commission ?? 0);
+const netPnl = (t) => (t.pnl ?? 0);
 
 // Affiche le nombre exact, sans arrondi — garde tous les décimales significatifs
 function fmtNum(n, opts = {}) {
@@ -581,7 +581,7 @@ export default function TradingDashboard() {
               {isMobile && (<>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <KPICard label="Win Rate"    value={`${winRate}%`}   color="#4ade80" icon="🎯" sub={`${wins.length}W/${losses.length}L`} />
-                  <KPICard label="Net P&L"     value={fmt(totalNetPnl)} color={totalNetPnl>=0?"#4ade80":"#f87171"} icon="💹" sub="after comm" />
+                  <KPICard label="Net P&L"     value={fmt(totalNetPnl)} color={totalNetPnl>=0?"#4ade80":"#f87171"} icon="💹" sub="commission incluse" />
                   <KPICard label="Returns"     value={`${returns}%`}   color="#60a5fa" icon="📈" sub={`$${totalDeposit.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`} />
                   <KPICard label="Prof.Factor" value={profitFactor}    color="#f59e0b" icon="⚡" sub={`+${fmtNum(avgWin,{prefix:"$"})} avg`} />
                 </div>
@@ -660,7 +660,7 @@ export default function TradingDashboard() {
                 {!isMobile && (<>
                   <div style={{display:"flex",gap:10}}>
                     <KPICard label="Win Rate"     value={`${winRate}%`}   color="#4ade80" icon="🎯" sub={`${wins.length}W / ${losses.length}L`} />
-                    <KPICard label="Total P&L"    value={fmt(totalNetPnl)} color={totalNetPnl>=0?"#4ade80":"#f87171"} icon="💹" sub="Net of commissions" />
+                    <KPICard label="Total P&L"    value={fmt(totalNetPnl)} color={totalNetPnl>=0?"#4ade80":"#f87171"} icon="💹" sub="Commission included" />
                     <KPICard label="Returns"      value={`${returns}%`}   color="#60a5fa" icon="📈" sub={`on $${totalDeposit.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`} />
                     <KPICard label="Profit Factor" value={profitFactor}   color="#f59e0b" icon="⚡" sub={`avg win ${fmtNum(avgWin,{prefix:"$"})}`} />
                   </div>
