@@ -184,7 +184,6 @@ const COLUMNS = [
   { key: "direction", label: "Dir",     sort: (a,b)=>(a.direction||"").localeCompare(b.direction||"") },
   { key: "lot",       label: "Lot",     sort: (a,b)=>(a.lot??0)-(b.lot??0) },
   { key: "pnl",       label: "P&L",     sort: (a,b)=>(a.pnl??0)-(b.pnl??0) },
-  { key: "commission",label: "Comm",    sort: (a,b)=>Math.abs(a.commission??0)-Math.abs(b.commission??0) },
   { key: "netpnl",    label: "Net P&L", sort: (a,b)=>netPnl(a)-netPnl(b) },
   { key: "setup",     label: "Setup",   sort: (a,b)=>(a.setup||"").localeCompare(b.setup||"") },
   { key: "outcome",   label: "Outcome", sort: (a,b)=>(a.outcome||"").localeCompare(b.outcome||"") },
@@ -238,7 +237,6 @@ function TradeTable({ trades, filter, onEditTrade }) {
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:16,fontWeight:700,color:netPnl(t)>=0?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace"}}>{fmt(netPnl(t))}</div>
-                {t.commission!=null && <div style={{fontSize:9,color:"#f87171",fontFamily:"'DM Mono',monospace"}}>-${Math.abs(t.commission).toFixed(2)} comm</div>}
               </div>
             </div>
           </div>
@@ -270,7 +268,7 @@ function TradeTable({ trades, filter, onEditTrade }) {
         </thead>
         <tbody>
           {sorted.length === 0 ? (
-            <tr><td colSpan={11} style={{padding:32,textAlign:"center",color:"#3a4255",fontFamily:"'DM Mono',monospace"}}>No trades in this period</td></tr>
+            <tr><td colSpan={10} style={{padding:32,textAlign:"center",color:"#3a4255",fontFamily:"'DM Mono',monospace"}}>No trades in this period</td></tr>
           ) : sorted.map((t,i) => (
             <tr key={t.id||i} style={{borderBottom:"1px solid #0f1520"}}
               onMouseEnter={e=>e.currentTarget.style.background="#0f1520"}
@@ -281,7 +279,6 @@ function TradeTable({ trades, filter, onEditTrade }) {
               <td style={{padding:"8px 10px",color:t.direction==="BUY"?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace",fontSize:11}}>{t.direction||"—"}</td>
               <td style={{padding:"8px 10px",color:"#8899aa",fontFamily:"'DM Mono',monospace"}}>{t.lot??"—"}</td>
               <td style={{padding:"8px 10px",color:(t.pnl??0)>=0?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace"}}>{t.pnl!=null?fmtNum(t.pnl,{prefix:"$",sign:true}):"—"}</td>
-              <td style={{padding:"8px 10px",color:"#f87171",fontFamily:"'DM Mono',monospace"}}>{t.commission!=null?`-$${Math.abs(t.commission).toFixed(2)}`:"—"}</td>
               <td style={{padding:"8px 10px",fontWeight:700,color:netPnl(t)>=0?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace"}}>{fmt(netPnl(t))}</td>
               <td style={{padding:"8px 10px"}}>{t.setup&&<span style={{background:"#1a1f2e",color:"#8899aa",padding:"2px 7px",borderRadius:4,fontSize:9}}>{t.setup}</span>}</td>
               <td style={{padding:"8px 10px"}}>{t.outcome&&<span style={{background:t.outcome==="WIN"?"#0d2117":"#1a0d0d",color:t.outcome==="WIN"?"#4ade80":"#f87171",padding:"2px 9px",borderRadius:20,fontSize:9,fontWeight:700,border:`1px solid ${t.outcome==="WIN"?"#1a4a2a":"#3a1a1a"}`}}>{t.outcome}</span>}</td>
@@ -581,7 +578,7 @@ export default function TradingDashboard() {
               {isMobile && (<>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <KPICard label="Win Rate"    value={`${winRate}%`}   color="#4ade80" icon="🎯" sub={`${wins.length}W/${losses.length}L`} />
-                  <KPICard label="Net P&L"     value={fmt(totalNetPnl)} color={totalNetPnl>=0?"#4ade80":"#f87171"} icon="💹" sub="commission incluse" />
+                  <KPICard label="Net P&L"     value={fmt(totalNetPnl)} color={totalNetPnl>=0?"#4ade80":"#f87171"} icon="💹" sub="résultat total" />
                   <KPICard label="Returns"     value={`${returns}%`}   color="#60a5fa" icon="📈" sub={`$${totalDeposit.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`} />
                   <KPICard label="Prof.Factor" value={profitFactor}    color="#f59e0b" icon="⚡" sub={`+${fmtNum(avgWin,{prefix:"$"})} avg`} />
                 </div>
@@ -660,7 +657,7 @@ export default function TradingDashboard() {
                 {!isMobile && (<>
                   <div style={{display:"flex",gap:10}}>
                     <KPICard label="Win Rate"     value={`${winRate}%`}   color="#4ade80" icon="🎯" sub={`${wins.length}W / ${losses.length}L`} />
-                    <KPICard label="Total P&L"    value={fmt(totalNetPnl)} color={totalNetPnl>=0?"#4ade80":"#f87171"} icon="💹" sub="Commission included" />
+                    <KPICard label="Total P&L"    value={fmt(totalNetPnl)} color={totalNetPnl>=0?"#4ade80":"#f87171"} icon="💹" sub="overall result" />
                     <KPICard label="Returns"      value={`${returns}%`}   color="#60a5fa" icon="📈" sub={`on $${totalDeposit.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`} />
                     <KPICard label="Profit Factor" value={profitFactor}   color="#f59e0b" icon="⚡" sub={`avg win ${fmtNum(avgWin,{prefix:"$"})}`} />
                   </div>
