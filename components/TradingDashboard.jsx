@@ -48,6 +48,24 @@ function getWeekKey(dateStr) {
   return `W${Math.ceil(((d - start) / 86400000 + start.getDay() + 1) / 7)}`;
 }
 
+function getDeviceDateParts(date = new Date()) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const obj = Object.fromEntries(parts.filter(p => p.type !== "literal").map(p => [p.type, p.value]));
+  return {
+    year: Number(obj.year),
+    month: Number(obj.month),
+    day: Number(obj.day),
+    dateStr: `${obj.year}-${obj.month}-${obj.day}`,
+    yearMonth: `${obj.year}-${obj.month}`,
+  };
+}
+
 function useIsMobile() {
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
@@ -190,15 +208,15 @@ const COLUMNS = [
 ];
 
 function TradeTable({ trades, filter, onEditTrade }) {
-  const now = new Date();
+  const deviceNow = getDeviceDateParts();
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState("date");
   const [sortDir, setSortDir] = useState(-1); // -1 = desc, 1 = asc
 
   const filtered = filter === "week"
-    ? trades.filter(t => t.date && new Date(t.date) >= new Date(now - 7*86400000))
+    ? trades.filter(t => t.date && new Date(t.date) >= new Date(Date.now() - 7 * 86400000))
     : filter === "month"
-    ? trades.filter(t => t.date && t.date.slice(0,7) === now.toISOString().slice(0,7))
+    ? trades.filter(t => t.date && t.date.slice(0,7) === deviceNow.yearMonth)
     : trades;
 
   const col = COLUMNS.find(c => c.key === sortKey);
@@ -210,6 +228,38 @@ function TradeTable({ trades, filter, onEditTrade }) {
     if (sortKey === key) setSortDir(d => -d);
     else { setSortKey(key); setSortDir(-1); }
   };
+
+  const monthGroupedRows = [];
+  if (filter === "month" && sorted.length > 0) {
+    let weekTotal = 0;
+    let currentWeek = null;
+    let currentWeekLabel = "";
+
+    sorted.forEach((t, i) => {
+      const hasDate = Boolean(t.date);
+      const weekKey = hasDate ? `${new Date(t.date).getFullYear()}-${getWeekKey(t.date)}` : `no-date-${i}`;
+      const weekLabel = hasDate ? getWeekKey(t.date) : "No date";
+
+      if (currentWeek === null) {
+        currentWeek = weekKey;
+        currentWeekLabel = weekLabel;
+      }
+
+      if (weekKey !== currentWeek) {
+        monthGroupedRows.push({ type: "subtotal", weekLabel: currentWeekLabel, total: weekTotal, key: `sum-${currentWeek}-${i}` });
+        weekTotal = 0;
+        currentWeek = weekKey;
+        currentWeekLabel = weekLabel;
+      }
+
+      weekTotal += netPnl(t);
+      monthGroupedRows.push({ type: "trade", trade: t, idx: i, key: t.id || `t-${i}` });
+
+      if (i === sorted.length - 1) {
+        monthGroupedRows.push({ type: "subtotal", weekLabel: currentWeekLabel, total: weekTotal, key: `sum-${currentWeek}-last` });
+      }
+    });
+  }
 
   if (isMobile) {
     return (
@@ -269,25 +319,33 @@ function TradeTable({ trades, filter, onEditTrade }) {
         <tbody>
           {sorted.length === 0 ? (
             <tr><td colSpan={10} style={{padding:32,textAlign:"center",color:"#3a4255",fontFamily:"'DM Mono',monospace"}}>No trades in this period</td></tr>
-          ) : sorted.map((t,i) => (
-            <tr key={t.id||i} style={{borderBottom:"1px solid #0f1520"}}
-              onMouseEnter={e=>e.currentTarget.style.background="#0f1520"}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <td style={{padding:"8px 10px",color:"#3a4255",fontFamily:"'DM Mono',monospace"}}>{String(i+1).padStart(2,"0")}</td>
-              <td style={{padding:"8px 10px",color:"#8899aa",fontFamily:"'DM Mono',monospace"}}>{t.date||"—"}</td>
-              <td style={{padding:"8px 10px"}}><span style={{background:t.pair==="XAUUSD"?"#2a1f00":"#1a1a2e",color:t.pair==="XAUUSD"?"#f59e0b":"#818cf8",padding:"2px 7px",borderRadius:4,fontSize:9,fontWeight:600}}>{t.pair||"—"}</span></td>
-              <td style={{padding:"8px 10px",color:t.direction==="BUY"?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace",fontSize:11}}>{t.direction||"—"}</td>
-              <td style={{padding:"8px 10px",color:"#8899aa",fontFamily:"'DM Mono',monospace"}}>{t.lot??"—"}</td>
-              <td style={{padding:"8px 10px",color:(t.pnl??0)>=0?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace"}}>{t.pnl!=null?fmtNum(t.pnl,{prefix:"$",sign:true}):"—"}</td>
-              <td style={{padding:"8px 10px",fontWeight:700,color:netPnl(t)>=0?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace"}}>{fmt(netPnl(t))}</td>
-              <td style={{padding:"8px 10px"}}>{t.setup&&<span style={{background:"#1a1f2e",color:"#8899aa",padding:"2px 7px",borderRadius:4,fontSize:9}}>{t.setup}</span>}</td>
-              <td style={{padding:"8px 10px"}}>{t.outcome&&<span style={{background:t.outcome==="WIN"?"#0d2117":"#1a0d0d",color:t.outcome==="WIN"?"#4ade80":"#f87171",padding:"2px 9px",borderRadius:20,fontSize:9,fontWeight:700,border:`1px solid ${t.outcome==="WIN"?"#1a4a2a":"#3a1a1a"}`}}>{t.outcome}</span>}</td>
-              <td style={{padding:"8px 10px"}}>
-                <button onClick={() => onEditTrade(t)} style={{background:"#0f1520",border:"1px solid #1e2433",color:"#60a5fa",borderRadius:6,padding:"4px 8px",fontSize:9,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
-                  Edit
-                </button>
-              </td>
-            </tr>
+          ) : (filter === "month" ? monthGroupedRows : sorted.map((t, i) => ({ type: "trade", trade: t, idx: i, key: t.id || `t-${i}` }))).map((row) => (
+            row.type === "subtotal" ? (
+              <tr key={row.key} style={{background:"#0c1220",borderTop:"1px solid #1e2433",borderBottom:"1px solid #1e2433"}}>
+                <td colSpan={10} style={{padding:"8px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",fontSize:10,color:"#9aa3b2"}}>
+                  Total {row.weekLabel}: <span style={{marginLeft:8,fontWeight:700,color:row.total>=0?"#4ade80":"#f87171"}}>{fmt(row.total)}</span>
+                </td>
+              </tr>
+            ) : (
+              <tr key={row.key} style={{borderBottom:"1px solid #0f1520"}}
+                onMouseEnter={e=>e.currentTarget.style.background="#0f1520"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <td style={{padding:"8px 10px",color:"#3a4255",fontFamily:"'DM Mono',monospace"}}>{String(row.idx+1).padStart(2,"0")}</td>
+                <td style={{padding:"8px 10px",color:"#8899aa",fontFamily:"'DM Mono',monospace"}}>{row.trade.date||"—"}</td>
+                <td style={{padding:"8px 10px"}}><span style={{background:row.trade.pair==="XAUUSD"?"#2a1f00":"#1a1a2e",color:row.trade.pair==="XAUUSD"?"#f59e0b":"#818cf8",padding:"2px 7px",borderRadius:4,fontSize:9,fontWeight:600}}>{row.trade.pair||"—"}</span></td>
+                <td style={{padding:"8px 10px",color:row.trade.direction==="BUY"?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace",fontSize:11}}>{row.trade.direction||"—"}</td>
+                <td style={{padding:"8px 10px",color:"#8899aa",fontFamily:"'DM Mono',monospace"}}>{row.trade.lot??"—"}</td>
+                <td style={{padding:"8px 10px",color:(row.trade.pnl??0)>=0?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace"}}>{row.trade.pnl!=null?fmtNum(row.trade.pnl,{prefix:"$",sign:true}):"—"}</td>
+                <td style={{padding:"8px 10px",fontWeight:700,color:netPnl(row.trade)>=0?"#4ade80":"#f87171",fontFamily:"'DM Mono',monospace"}}>{fmt(netPnl(row.trade))}</td>
+                <td style={{padding:"8px 10px"}}>{row.trade.setup&&<span style={{background:"#1a1f2e",color:"#8899aa",padding:"2px 7px",borderRadius:4,fontSize:9}}>{row.trade.setup}</span>}</td>
+                <td style={{padding:"8px 10px"}}>{row.trade.outcome&&<span style={{background:row.trade.outcome==="WIN"?"#0d2117":"#1a0d0d",color:row.trade.outcome==="WIN"?"#4ade80":"#f87171",padding:"2px 9px",borderRadius:20,fontSize:9,fontWeight:700,border:`1px solid ${row.trade.outcome==="WIN"?"#1a4a2a":"#3a1a1a"}`}}>{row.trade.outcome}</span>}</td>
+                <td style={{padding:"8px 10px"}}>
+                  <button onClick={() => onEditTrade(row.trade)} style={{background:"#0f1520",border:"1px solid #1e2433",color:"#60a5fa",borderRadius:6,padding:"4px 8px",fontSize:9,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+                    Edit
+                  </button>
+                </td>
+              </tr>
+            )
           ))}
         </tbody>
       </table>
@@ -297,7 +355,7 @@ function TradeTable({ trades, filter, onEditTrade }) {
 
 // ── ADD TRADE MODAL ───────────────────────────────────────────────────────────
 function AddTradeModal({ onClose, onSuccess, initialTrade = null }) {
-  const today = new Date().toISOString().slice(0,10);
+  const today = getDeviceDateParts().dateStr;
   const isEdit = Boolean(initialTrade?.id);
   const [date, setDate]             = useState(today);
   const [pair, setPair]             = useState("XAUUSD");
@@ -471,6 +529,7 @@ export default function TradingDashboard() {
   const [tableFilter, setTableFilter] = useState("all");
   const [showAddTrade, setShowAddTrade] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
+  const [showStopPopup, setShowStopPopup] = useState(false);
   const isMobile = useIsMobile();
 
   const loadData = useCallback(async () => {
@@ -523,6 +582,25 @@ export default function TradingDashboard() {
     {metric:"Avg R:R",    value:Math.min((avgWin/Math.max(avgLoss,1))*33,100)},
   ];
   const currentChartData = ({daily:dailyData,weekly:weeklyData,monthly:monthlyData})[chartTab]||[];
+  const deviceNow = getDeviceDateParts();
+  const todayStr = deviceNow.dateStr;
+  const todayPnl = validTrades
+    .filter((t) => t.date && t.date.slice(0, 10) === todayStr)
+    .reduce((s, t) => s + netPnl(t), 0);
+
+  useEffect(() => {
+    if (todayPnl > -300) {
+      setShowStopPopup(false);
+      return;
+    }
+    const ackDate = window.localStorage.getItem("stopTradingAckDate");
+    if (ackDate !== todayStr) setShowStopPopup(true);
+  }, [todayPnl, todayStr]);
+
+  const dismissStopPopup = () => {
+    setShowStopPopup(false);
+    window.localStorage.setItem("stopTradingAckDate", todayStr);
+  };
 
   const TABS = [{id:"analytics",label:"📊",full:"Analytics"},{id:"journal",label:"📋",full:"Journal"},{id:"accounts",label:"💰",full:"Accounts"}];
   const pad = isMobile ? "12px 14px" : "22px 28px";
@@ -682,7 +760,7 @@ export default function TradingDashboard() {
                   </div>
                 </>)}
                 <div style={{background:"#0f1117",border:"1px solid #1e2433",borderRadius:12,padding:14,flex:1}}>
-                  <CalendarView trades={validTrades} year={new Date().getFullYear()} month={new Date().getMonth()} />
+                  <CalendarView trades={validTrades} year={deviceNow.year} month={deviceNow.month - 1} />
                 </div>
               </div>
             </div>
@@ -801,6 +879,25 @@ export default function TradingDashboard() {
           onClose={()=>setEditingTrade(null)}
           onSuccess={loadData}
         />
+      )}
+      {showStopPopup && (
+        <div style={{position:"fixed",inset:0,background:"rgba(8,11,18,0.75)",backdropFilter:"blur(6px)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{width:"100%",maxWidth:460,background:"#0f1117",border:"1px solid #3a1a1a",borderRadius:14,padding:"18px 18px 16px"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:"#f87171",marginBottom:8}}>
+              Stop Trading
+            </div>
+            <div style={{fontSize:12,color:"#e8eaf0",lineHeight:1.5,fontFamily:"'DM Sans',sans-serif"}}>
+              Tu as depasse la limite de perte journaliere de <b>$300</b> ({fmt(todayPnl)} aujourd'hui).
+              <br />
+              Stop le trading pour aujourd'hui. Demain, tu repars proprement.
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",marginTop:14}}>
+              <button onClick={dismissStopPopup} style={{background:"#1a0d0d",border:"1px solid #3a1a1a",color:"#f87171",borderRadius:8,padding:"9px 14px",fontSize:11,fontFamily:"'DM Mono',monospace",cursor:"pointer"}}>
+                Compris
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
