@@ -300,6 +300,17 @@ function AddTradeModal({ onClose, onSuccess }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState(null);
 
+  useEffect(() => {
+    if (pair !== "XAUUSD") return;
+    if (lot === "") {
+      setCommission("");
+      return;
+    }
+    const parsedLot = Number(lot);
+    if (Number.isNaN(parsedLot)) return;
+    setCommission((parsedLot * 7).toFixed(2));
+  }, [pair, lot]);
+
   const handleSubmit = async () => {
     setSubmitting(true); setError(null);
     try {
@@ -365,7 +376,24 @@ function AddTradeModal({ onClose, onSuccess }) {
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <Field label="Commission ($)">
-              <input type="number" step="0.01" placeholder="3.50" value={commission} onChange={e=>setCommission(e.target.value)} style={INPUT_STYLE} />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="3.50"
+                value={commission}
+                onChange={e=>setCommission(e.target.value)}
+                disabled={pair === "XAUUSD"}
+                style={{
+                  ...INPUT_STYLE,
+                  opacity: pair === "XAUUSD" ? 0.7 : 1,
+                  cursor: pair === "XAUUSD" ? "not-allowed" : "text",
+                }}
+              />
+              {pair === "XAUUSD" && (
+                <div style={{marginTop:4,fontSize:9,color:"#5a6478",fontFamily:"'DM Mono', monospace"}}>
+                  Auto: commission = lot x $7.00
+                </div>
+              )}
             </Field>
             <Field label="Setup">
               <select value={setup} onChange={e=>setSetup(e.target.value)} style={{...INPUT_STYLE,cursor:"pointer"}}>

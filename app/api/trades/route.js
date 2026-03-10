@@ -92,7 +92,7 @@ export async function POST(request) {
     if (date) properties["Trade Date"] = { date: { start: date } };
 
     const page = await notion.pages.create({
-      parent: { type: "database_id", database_id: process.env.TRADES_DB_ID },
+      parent: { data_source_id: process.env.TRADES_DB_ID },
       properties,
     });
 
